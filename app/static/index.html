@@ -189,28 +189,34 @@
                                 <div class="mb-3">
                                     <div class="d-flex justify-content-between mb-1">
                                         <span>Conciliados</span>
-                                        <span id="conciliadosCount">3 (50%)</span>
+                                        <span id="conciliadosCount">0 (0%)</span>
                                     </div>
                                     <div class="progress" style="height: 8px;">
-                                        <div class="progress-bar bg-success" role="progressbar" style="width: 50%"></div>
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
                                     </div>
                                 </div>
                                 <div class="mb-3">
                                     <div class="d-flex justify-content-between mb-1">
                                         <span>Pendentes</span>
-                                        <span id="pendentesCount">2 (33%)</span>
+                                        <span id="pendentesCount">0 (0%)</span>
                                     </div>
                                     <div class="progress" style="height: 8px;">
-                                        <div class="progress-bar bg-warning" role="progressbar" style="width: 33%"></div>
+                                        <div class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
                                     </div>
                                 </div>
                                 <div class="mb-3">
                                     <div class="d-flex justify-content-between mb-1">
-                                        <span>Com Erro</span>
-                                        <span id="errosCount">1 (17%)</span>
+                                        <div class="d-flex align-items-center">
+                                            <span class="me-2">Com Erro</span>
+                                            <button id="downloadErrorsBtn" class="btn btn-sm btn-outline-danger" style="display: none;">
+                                                <i class="bi bi-download me-1"></i>
+                                                Baixar Erros
+                                            </button>
+                                        </div>
+                                        <span id="errosCount">0 (0%)</span>
                                     </div>
                                     <div class="progress" style="height: 8px;">
-                                        <div class="progress-bar bg-danger" role="progressbar" style="width: 17%"></div>
+                                        <div class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
                                     </div>
                                 </div>
                             </div>
@@ -331,10 +337,18 @@
                 document.getElementById('pixTotal').textContent = formatCurrency(data.payment_methods.pix);
                 document.getElementById('boletoTotal').textContent = formatCurrency(data.payment_methods.boleto);
                 
-                // Atualizar status de conciliação
+                // Atualizar status de conciliação e botão de download
                 document.getElementById('conciliadosCount').textContent = `${data.status_counts.reconciled} (${data.status_percentages.reconciled}%)`;
                 document.getElementById('pendentesCount').textContent = `${data.status_counts.pending} (${data.status_percentages.pending}%)`;
                 document.getElementById('errosCount').textContent = `${data.status_counts.error} (${data.status_percentages.error}%)`;
+                
+                // Mostrar ou esconder botão de download de erros
+                const downloadErrorsBtn = document.getElementById('downloadErrorsBtn');
+                if (data.status_counts.error > 0) {
+                    downloadErrorsBtn.style.display = 'inline-flex';
+                } else {
+                    downloadErrorsBtn.style.display = 'none';
+                }
                 
                 // Atualizar barras de progresso
                 document.querySelector('.progress-bar.bg-success').style.width = `${data.status_percentages.reconciled}%`;
@@ -536,6 +550,43 @@
             label.className = 'form-text';
             label.textContent = fileName;
             this.parentElement.appendChild(label);
+        });
+
+        // Adicionar evento de clique no botão de download de erros
+        document.getElementById('downloadErrorsBtn').addEventListener('click', async () => {
+            const date = document.getElementById('reconciliationDate').value;
+            if (!date) {
+                showAlert('Selecione uma data para baixar os erros', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/export/errors/${date}`);
+                if (!response.ok) {
+                    throw new Error('Erro ao baixar arquivo');
+                }
+                
+                // Obter o blob do arquivo
+                const blob = await response.blob();
+                
+                // Criar URL do blob
+                const url = window.URL.createObjectURL(blob);
+                
+                // Criar link temporário e clicar nele
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `erros_conciliacao_${date}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                
+                // Limpar
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+            } catch (error) {
+                console.error('Erro ao baixar erros:', error);
+                showAlert('Erro ao baixar arquivo de erros', 'danger');
+            }
         });
     </script>
 </body>

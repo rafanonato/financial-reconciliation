@@ -1,12 +1,14 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from datetime import datetime
 import os
 from app.services.reconciliation_service import ReconciliationService
 from app.models.payment import ReconciliationResult
 from typing import List, Dict
+import pandas as pd
+import io
 
 app = FastAPI(
     title="FinanceSync Estacionamento",
@@ -281,4 +283,59 @@ async def export_transactions(date: str, format: str = "csv"):
         raise HTTPException(
             status_code=500,
             detail=f"Erro ao exportar transações: {str(e)}"
+        )
+
+@app.get("/api/export/errors/{date}")
+async def export_errors(date: str):
+    """
+    Exporta os pagamentos com erro de conciliação para uma data específica
+    """
+    try:
+        # Converter string para data
+        export_date = datetime.strptime(date, '%Y-%m-%d').date()
+        
+        # Realizar conciliação para obter erros
+        reconciliation_result = reconciliation_service.reconcile_payments(export_date)
+        
+        if not reconciliation_result['errors']:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhum erro de conciliação encontrado para esta data"
+            )
+        
+        # Criar DataFrame com os erros
+        errors_data = []
+        for error in reconciliation_result['errors']:
+            errors_data.append({
+                'Ticket': error['ticket'],
+                'Valor Esperado': error['expected'],
+                'Valor Recebido': error['received'],
+                'Diferença': error['difference'],
+                'Status': 'Erro - Valor maior que o esperado'
+            })
+        
+        df = pd.DataFrame(errors_data)
+        
+        # Criar arquivo CSV em memória
+        output = io.StringIO()
+        df.to_csv(output, index=False, sep=';', decimal=',')
+        output.seek(0)
+        
+        # Retornar arquivo para download
+        return Response(
+            content=output.getvalue(),
+            media_type='text/csv',
+            headers={
+                'Content-Disposition': f'attachment; filename=erros_conciliacao_{date}.csv'
+            }
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Formato de data inválido. Use YYYY-MM-DD"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao exportar erros de conciliação: {str(e)}"
         ) 
