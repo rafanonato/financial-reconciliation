@@ -1,0 +1,9 @@
+transaction_id,date,amount,card_type,parking_id,ticket_number,status
+TRX001,2024-03-20 10:30:00,50.00,mastercard,PARK001,TKT001,approved
+TRX002,2024-03-20 11:15:00,75.50,visa,PARK002,TKT002,approved
+TRX003,2024-03-20 14:20:00,30.00,mastercard,PARK001,TKT003,approved
+order_id,payment_sequential,payment_type,payment_installments,payment_value
+b81ef226f3fe1789b1e8b2acac839d17,1,credit_card,8,99.33
+a9810da82917af2d9aefd1278f1dcfa0,1,credit_card,1,24.39
+25e8ea4e93396b6fa0d3dd708e76c1bd,1,credit_card,1,65.71
+ba78997921bbcdc1373bb41e913ab953,1,credit_card,8,107.78 

@@ -1,0 +1,5 @@
+order_id	payment_sequential	payment_type	payment_installments	payment_value
+b81ef226f3fe1789b1e8b2acac839d17	1	credit_card	8	99.33
+a9810da82917af2d9aefd1278f1dcfa0	1	credit_card	1	24.39
+25e8ea4e93396b6fa0d3dd708e76c1bd	1	credit_card	1	65.71
+ba78997921bbcdc1373bb41e913ab953	1	credit_card	8	107.78 
