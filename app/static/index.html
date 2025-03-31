@@ -107,60 +107,72 @@
         <div class="container mt-4">
             <h2 class="mb-4">Conciliação Financeira</h2>
 
-            <!-- Resumo Diário -->
-            <div class="card">
+            <!-- Conciliação Financeira -->
+            <div class="card mt-4">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="card-title mb-0">Resumo Diário</h5>
-                        <input type="date" class="form-control" style="width: 200px;" id="reconciliationDate">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="card-title">Resumo Diário</h5>
+                        <div class="d-flex align-items-center">
+                            <input type="date" class="form-control me-2" id="reconciliationDate">
+                        </div>
                     </div>
-                    <div class="row">
+                    
+                    <div class="row mb-4">
                         <div class="col-md-3">
-                            <small class="text-muted">Esperado</small>
-                            <h3 id="expectedAmount">R$ 0,00</h3>
+                            <div class="mb-2">
+                                <label class="text-muted">Esperado</label>
+                                <h3 class="mb-0" id="expectedAmount">R$ 175.000,00</h3>
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <small class="text-muted">Recebido</small>
-                            <h3 id="receivedAmount">R$ 0,00</h3>
+                            <div class="mb-2">
+                                <label class="text-muted">Recebido</label>
+                                <h3 class="mb-0" id="receivedAmount">R$ 173.250,00</h3>
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <small class="text-muted">Diferença</small>
-                            <h3 id="differenceAmount" class="value-difference">R$ 0,00</h3>
+                            <div class="mb-2">
+                                <label class="text-muted">Diferença</label>
+                                <h3 class="mb-0 text-danger" id="differenceAmount">-R$ 1.750,00</h3>
+                            </div>
                         </div>
-                        <div class="col-md-3 text-end">
-                            <span class="status-badge status-pendente mb-2" id="reconciliationStatus">Pendente</span>
+                        <div class="col-md-3 text-end d-flex align-items-center justify-content-end">
+                            <button class="btn btn-warning me-2" id="statusButton">Pendente</button>
                             <button class="btn btn-primary" id="reconcileButton">Conciliar Agora</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="row">
+            <!-- Cards de Métodos de Pagamento e Status -->
+            <div class="row mt-4">
                 <!-- Métodos de Pagamento -->
                 <div class="col-md-6">
-                    <div class="card">
+                    <div class="card h-100">
                         <div class="card-body">
-                            <h5 class="card-title">Métodos de Pagamento</h5>
+                            <h5 class="card-title mb-4">Métodos de Pagamento</h5>
                             <div class="row">
                                 <div class="col-md-6">
                                     <canvas id="paymentMethodsChart"></canvas>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="payment-method-item">
-                                        <span>Mastercard</span>
-                                        <strong id="mastercardTotal">R$ 0,00</strong>
-                                    </div>
-                                    <div class="payment-method-item">
-                                        <span>Visa</span>
-                                        <strong id="visaTotal">R$ 0,00</strong>
-                                    </div>
-                                    <div class="payment-method-item">
-                                        <span>PIX</span>
-                                        <strong id="pixTotal">R$ 0,00</strong>
-                                    </div>
-                                    <div class="payment-method-item">
-                                        <span>Boleto</span>
-                                        <strong id="boletoTotal">R$ 0,00</strong>
+                                    <div class="payment-methods-list">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Mastercard</span>
+                                            <strong id="mastercardTotal">R$ 45.000,00</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Visa</span>
+                                            <strong id="visaTotal">R$ 38.000,00</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>PIX</span>
+                                            <strong id="pixTotal">R$ 65.000,00</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Boleto</span>
+                                            <strong id="boletoTotal">R$ 27.000,00</strong>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -170,29 +182,37 @@
 
                 <!-- Status de Conciliação -->
                 <div class="col-md-6">
-                    <div class="card">
+                    <div class="card h-100">
                         <div class="card-body">
-                            <h5 class="card-title">Status de Conciliação</h5>
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-between">
-                                    <span>Conciliados</span>
-                                    <span id="conciliadosCount">0 (0%)</span>
+                            <h5 class="card-title mb-4">Status de Conciliação</h5>
+                            <div class="status-list">
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>Conciliados</span>
+                                        <span id="conciliadosCount">3 (50%)</span>
+                                    </div>
+                                    <div class="progress" style="height: 8px;">
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: 50%"></div>
+                                    </div>
                                 </div>
-                                <div class="status-bar bg-success" style="width: 0%"></div>
-                            </div>
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-between">
-                                    <span>Pendentes</span>
-                                    <span id="pendentesCount">0 (0%)</span>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>Pendentes</span>
+                                        <span id="pendentesCount">2 (33%)</span>
+                                    </div>
+                                    <div class="progress" style="height: 8px;">
+                                        <div class="progress-bar bg-warning" role="progressbar" style="width: 33%"></div>
+                                    </div>
                                 </div>
-                                <div class="status-bar bg-warning" style="width: 0%"></div>
-                            </div>
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-between">
-                                    <span>Com Erro</span>
-                                    <span id="errosCount">0 (0%)</span>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>Com Erro</span>
+                                        <span id="errosCount">1 (17%)</span>
+                                    </div>
+                                    <div class="progress" style="height: 8px;">
+                                        <div class="progress-bar bg-danger" role="progressbar" style="width: 17%"></div>
+                                    </div>
                                 </div>
-                                <div class="status-bar bg-danger" style="width: 0%"></div>
                             </div>
                         </div>
                     </div>
@@ -254,15 +274,16 @@
                 datasets: [{
                     data: [45000, 38000, 65000, 27000],
                     backgroundColor: [
-                        '#dc3545',
-                        '#0d6efd',
-                        '#198754',
-                        '#ffc107'
+                        '#dc3545',  // Vermelho para Mastercard
+                        '#0d6efd',  // Azul para Visa
+                        '#198754',  // Verde para PIX
+                        '#ffc107'   // Amarelo para Boleto
                     ]
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
                         display: false
@@ -279,24 +300,93 @@
             }).format(value);
         }
 
-        // Atualizar valores do resumo
-        document.getElementById('expectedAmount').textContent = formatCurrency(175000);
-        document.getElementById('receivedAmount').textContent = formatCurrency(173250);
-        document.getElementById('differenceAmount').textContent = formatCurrency(-1750);
+        // Função para atualizar o dashboard
+        async function updateDashboard(date) {
+            try {
+                const response = await fetch(`/api/dashboard/${date}`);
+                const data = await response.json();
+                
+                // Atualizar valores do resumo
+                document.getElementById('expectedAmount').textContent = formatCurrency(data.expected_amount);
+                document.getElementById('receivedAmount').textContent = formatCurrency(data.received_amount);
+                document.getElementById('differenceAmount').textContent = formatCurrency(data.difference);
+                
+                // Atualizar status
+                const statusButton = document.getElementById('statusButton');
+                statusButton.className = `btn btn-${data.status === 'pending' ? 'warning' : 'success'}`;
+                statusButton.textContent = data.status === 'pending' ? 'Pendente' : 'Conciliado';
+                
+                // Atualizar gráfico e valores dos métodos de pagamento
+                paymentMethodsChart.data.datasets[0].data = [
+                    data.payment_methods.mastercard,
+                    data.payment_methods.visa,
+                    data.payment_methods.pix,
+                    data.payment_methods.boleto
+                ];
+                paymentMethodsChart.update();
+                
+                // Atualizar totais por método
+                document.getElementById('mastercardTotal').textContent = formatCurrency(data.payment_methods.mastercard);
+                document.getElementById('visaTotal').textContent = formatCurrency(data.payment_methods.visa);
+                document.getElementById('pixTotal').textContent = formatCurrency(data.payment_methods.pix);
+                document.getElementById('boletoTotal').textContent = formatCurrency(data.payment_methods.boleto);
+                
+                // Atualizar status de conciliação
+                document.getElementById('conciliadosCount').textContent = `${data.status_counts.reconciled} (${data.status_percentages.reconciled}%)`;
+                document.getElementById('pendentesCount').textContent = `${data.status_counts.pending} (${data.status_percentages.pending}%)`;
+                document.getElementById('errosCount').textContent = `${data.status_counts.error} (${data.status_percentages.error}%)`;
+                
+                // Atualizar barras de progresso
+                document.querySelector('.progress-bar.bg-success').style.width = `${data.status_percentages.reconciled}%`;
+                document.querySelector('.progress-bar.bg-warning').style.width = `${data.status_percentages.pending}%`;
+                document.querySelector('.progress-bar.bg-danger').style.width = `${data.status_percentages.error}%`;
+                
+            } catch (error) {
+                console.error('Erro ao atualizar dashboard:', error);
+                showAlert('Erro ao atualizar informações do dashboard', 'danger');
+            }
+        }
 
-        // Atualizar totais por método de pagamento
-        document.getElementById('mastercardTotal').textContent = formatCurrency(45000);
-        document.getElementById('visaTotal').textContent = formatCurrency(38000);
-        document.getElementById('pixTotal').textContent = formatCurrency(65000);
-        document.getElementById('boletoTotal').textContent = formatCurrency(27000);
+        // Evento de mudança de data
+        document.getElementById('reconciliationDate').addEventListener('change', async (e) => {
+            const date = e.target.value;
+            await updateDashboard(date);
+        });
 
-        // Atualizar contadores de status
-        document.getElementById('conciliadosCount').textContent = '3 (50%)';
-        document.querySelector('.status-bar.bg-success').style.width = '50%';
-        document.getElementById('pendentesCount').textContent = '2 (33%)';
-        document.querySelector('.status-bar.bg-warning').style.width = '33%';
-        document.getElementById('errosCount').textContent = '1 (17%)';
-        document.querySelector('.status-bar.bg-danger').style.width = '17%';
+        // Evento de conciliação
+        document.getElementById('reconcileButton').addEventListener('click', async () => {
+            const date = document.getElementById('reconciliationDate').value;
+            if (!date) {
+                showAlert('Selecione uma data para conciliar', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/reconcile', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ date })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showAlert('Conciliação realizada com sucesso', 'success');
+                    await updateDashboard(date);
+                } else {
+                    showAlert(result.detail || 'Erro ao realizar conciliação', 'danger');
+                }
+            } catch (error) {
+                console.error('Erro ao conciliar:', error);
+                showAlert('Erro ao realizar conciliação', 'danger');
+            }
+        });
+
+        // Inicializar com a data atual
+        document.getElementById('reconciliationDate').valueAsDate = new Date();
+        updateDashboard(new Date().toISOString().split('T')[0]);
 
         // Dados de exemplo para a tabela de transações
         const transactions = [
@@ -366,18 +456,6 @@
         document.getElementById('exportButton').addEventListener('click', () => {
             // Implementar lógica de exportação
             alert('Funcionalidade de exportação em desenvolvimento');
-        });
-
-        // Evento de conciliação
-        document.getElementById('reconcileButton').addEventListener('click', () => {
-            // Implementar lógica de conciliação
-            alert('Funcionalidade de conciliação em desenvolvimento');
-        });
-
-        // Evento de mudança de data
-        document.getElementById('reconciliationDate').addEventListener('change', (e) => {
-            // Implementar lógica de mudança de data
-            alert('Funcionalidade de mudança de data em desenvolvimento');
         });
 
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {

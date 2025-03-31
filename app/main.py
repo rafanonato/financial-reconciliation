@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -38,18 +38,26 @@ async def root():
     return FileResponse("app/static/index.html")
 
 @app.get("/api/dashboard/{date}")
-async def get_dashboard(date: str):
+async def get_dashboard_data(date: str):
     """
-    Obtém os dados do dashboard para uma data específica
+    Retorna os dados do dashboard para uma data específica
     """
     try:
-        dashboard_date = datetime.strptime(date, "%Y-%m-%d")
-        result = reconciliation_service.get_dashboard_data(dashboard_date)
-        return result
-    except ValueError:
+        # Converter string para data
+        dashboard_date = datetime.strptime(date, '%Y-%m-%d').date()
+        
+        # Obter dados do serviço de reconciliação
+        dashboard_data = reconciliation_service.get_dashboard_data(dashboard_date)
+        
+        return JSONResponse(
+            status_code=200,
+            content=dashboard_data
+        )
+        
+    except ValueError as e:
         raise HTTPException(
             status_code=400,
-            detail="Formato de data inválido. Use YYYY-MM-DD"
+            detail=f"Data inválida: {str(e)}"
         )
     except Exception as e:
         raise HTTPException(
@@ -72,18 +80,38 @@ async def get_transactions(date: str = None, status: str = None, search: str = N
         )
 
 @app.post("/api/reconcile")
-async def reconcile_transactions(date: str):
+async def reconcile_payments(request: Request):
     """
-    Inicia o processo de conciliação para uma data específica
+    Realiza a conciliação dos pagamentos para uma data específica
     """
     try:
-        reconciliation_date = datetime.strptime(date, "%Y-%m-%d")
+        data = await request.json()
+        date = data.get('date')
+        
+        if not date:
+            raise HTTPException(
+                status_code=400,
+                detail="Data não fornecida"
+            )
+            
+        # Converter string para data
+        reconciliation_date = datetime.strptime(date, '%Y-%m-%d').date()
+        
+        # Realizar conciliação
         result = reconciliation_service.reconcile_payments(reconciliation_date)
-        return result
-    except ValueError:
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "message": "Conciliação realizada com sucesso",
+                "result": result
+            }
+        )
+        
+    except ValueError as e:
         raise HTTPException(
             status_code=400,
-            detail="Formato de data inválido. Use YYYY-MM-DD"
+            detail=f"Data inválida: {str(e)}"
         )
     except Exception as e:
         raise HTTPException(

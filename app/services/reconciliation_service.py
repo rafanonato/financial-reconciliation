@@ -37,6 +37,8 @@ class ReconciliationService:
                 raise ValueError(f"Colunas obrigatórias ausentes: {', '.join(missing_columns)}")
             
             payments = []
+            expected_payments_dict = {}  # Dicionário para armazenar valores esperados
+            
             for idx, row in df.iterrows():
                 try:
                     # Validar tipo de pagamento
@@ -64,23 +66,34 @@ class ReconciliationService:
                         logger.warning(f"Número de parcelas inválido na linha {idx + 2}: {row['payment_installments']}")
                         continue
                     
+                    # Extrair data do arquivo ou usar data atual
+                    payment_date = datetime.now().date()
+                    date_key = payment_date.isoformat()
+                    
                     # Criar objeto Payment
+                    ticket_number = str(row['order_id'])[:8]  # Usando primeiros 8 caracteres como ticket
                     payment = Payment(
-                        ticket_number=str(row['order_id'])[:8],  # Usando primeiros 8 caracteres como ticket
+                        ticket_number=ticket_number,
                         amount=payment_value,
                         payment_type='credit_card',
                         payment_method='credit_card',
                         installments=installments,
                         transaction_id=str(row['order_id']),
-                        date=datetime.now().date()  # Data atual como padrão
+                        date=payment_date,
+                        status='pending'  # Status inicial é 'pending'
                     )
                     payments.append(payment)
                     
                     # Adicionar ao dicionário de pagamentos por data
-                    date_key = payment.date.isoformat()
                     if date_key not in self.payments:
                         self.payments[date_key] = []
                     self.payments[date_key].append(payment)
+                    
+                    # Adicionar ao dicionário de valores esperados
+                    if date_key not in expected_payments_dict:
+                        expected_payments_dict[date_key] = {}
+                    if ticket_number not in expected_payments_dict[date_key]:
+                        expected_payments_dict[date_key][ticket_number] = payment_value
                     
                     logger.info(f"Pagamento processado com sucesso: {payment.transaction_id}")
                     
@@ -91,7 +104,15 @@ class ReconciliationService:
             if not payments:
                 raise ValueError("Nenhum pagamento válido encontrado no arquivo")
             
+            # Atualizar valores esperados no serviço
+            for date_key, expected_values in expected_payments_dict.items():
+                if date_key not in self.expected_payments:
+                    self.expected_payments[date_key] = {}
+                self.expected_payments[date_key].update(expected_values)
+            
             logger.info(f"Total de pagamentos processados: {len(payments)}")
+            logger.info(f"Valores esperados definidos para as datas: {list(expected_payments_dict.keys())}")
+            
             return payments
             
         except Exception as e:
@@ -139,56 +160,62 @@ class ReconciliationService:
 
     def get_dashboard_data(self, date: datetime) -> Dict:
         """
-        Obtém os dados do dashboard para uma data específica
+        Retorna os dados do dashboard para uma data específica
         """
         try:
-            date_key = date.date().isoformat()
-            received_payments = self.payments.get(date_key, [])
+            # Converter para string ISO se for datetime, ou usar direto se for date
+            date_key = date.isoformat() if hasattr(date, 'date') else date.isoformat()
+            
+            # Obter pagamentos da data
+            payments = self.payments.get(date_key, [])
             
             # Calcular totais por método de pagamento
             payment_methods = {
-                'mastercard': 0,
-                'visa': 0,
-                'pix': 0,
-                'boleto': 0
+                'mastercard': sum(p.amount for p in payments if p.payment_method == 'mastercard'),
+                'visa': sum(p.amount for p in payments if p.payment_method == 'visa'),
+                'pix': sum(p.amount for p in payments if p.payment_method == 'pix'),
+                'boleto': sum(p.amount for p in payments if p.payment_method == 'boleto')
             }
             
-            for payment in received_payments:
-                if payment.payment_method == 'credit_card':
-                    # Aqui você pode adicionar lógica para diferenciar Mastercard e Visa
-                    payment_methods['mastercard'] += payment.amount
-                elif payment.payment_method == 'pix':
-                    payment_methods['pix'] += payment.amount
-                elif payment.payment_method == 'boleto':
-                    payment_methods['boleto'] += payment.amount
+            # Calcular totais esperados e recebidos
+            expected_amount = sum(self.expected_payments.get(date_key, {}).values())
+            received_amount = sum(p.amount for p in payments)
+            difference = received_amount - expected_amount
             
-            # Calcular status das transações
-            status_counts = {
-                'conciliado': 0,
-                'pendente': 0,
-                'erro': 0
-            }
-            
-            total_transactions = len(received_payments)
-            if total_transactions > 0:
-                # Aqui você pode adicionar lógica para determinar o status de cada transação
-                status_counts['conciliado'] = sum(1 for p in received_payments if p.amount > 0)  # Exemplo
-                status_counts['pendente'] = sum(1 for p in received_payments if p.amount == 0)  # Exemplo
-                status_counts['erro'] = total_transactions - status_counts['conciliado'] - status_counts['pendente']
+            # Calcular status de conciliação
+            total_payments = len(payments)
+            if total_payments == 0:
+                status_counts = {'reconciled': 0, 'pending': 0, 'error': 0}
+                status_percentages = {'reconciled': 0, 'pending': 0, 'error': 0}
+            else:
+                reconciled = len([p for p in payments if p.status == 'reconciled'])
+                pending = len([p for p in payments if p.status == 'pending'])
+                error = len([p for p in payments if p.status == 'error'])
+                
+                status_counts = {
+                    'reconciled': reconciled,
+                    'pending': pending,
+                    'error': error
+                }
+                
+                status_percentages = {
+                    'reconciled': round((reconciled / total_payments) * 100),
+                    'pending': round((pending / total_payments) * 100),
+                    'error': round((error / total_payments) * 100)
+                }
             
             return {
-                'summary': {
-                    'expected': sum(self.expected_payments.values()),
-                    'received': sum(p.amount for p in received_payments),
-                    'difference': sum(self.expected_payments.values()) - sum(p.amount for p in received_payments),
-                    'status': 'PENDENTE'  # Você pode adicionar lógica para determinar o status
-                },
+                'expected_amount': expected_amount,
+                'received_amount': received_amount,
+                'difference': difference,
+                'status': 'reconciled' if difference == 0 else 'pending',
                 'payment_methods': payment_methods,
-                'status_counts': status_counts
+                'status_counts': status_counts,
+                'status_percentages': status_percentages
             }
             
         except Exception as e:
-            logger.error(f"Erro ao obter dados do dashboard: {e}")
+            logger.error(f"Erro ao obter dados do dashboard: {str(e)}")
             raise
 
     def get_transactions(self, date: Optional[str] = None, status: Optional[str] = None, search: Optional[str] = None) -> List[Dict]:
@@ -269,56 +296,101 @@ class ReconciliationService:
             logger.error(f"Erro ao exportar transações: {e}")
             raise
 
-    def reconcile_payments(self, date: datetime) -> ReconciliationResult:
+    def reconcile_payments(self, date: datetime) -> dict:
         """
         Realiza a conciliação dos pagamentos para uma data específica
         """
         try:
-            date_key = date.date().isoformat()
-            received_payments = self.payments.get(date_key, [])
+            # Converter para string ISO se for datetime, ou usar direto se for date
+            date_key = date.isoformat() if hasattr(date, 'date') else date.isoformat()
             
-            # Calcular totais
-            total_expected = sum(self.expected_payments.values())
-            total_received = sum(payment.amount for payment in received_payments)
+            # Obter pagamentos da data
+            payments = self.payments.get(date_key, [])
+            if not payments:
+                raise ValueError("Nenhum pagamento encontrado para a data especificada")
             
-            # Identificar discrepâncias
-            discrepancies = []
+            # Obter ou criar valores esperados
+            if date_key not in self.expected_payments:
+                # Se não houver valores esperados definidos, usar os valores dos pagamentos
+                self.expected_payments[date_key] = {}
+                for payment in payments:
+                    if payment.ticket_number not in self.expected_payments[date_key]:
+                        self.expected_payments[date_key][payment.ticket_number] = payment.amount
             
-            # Verificar pagamentos recebidos vs esperados
-            for payment in received_payments:
-                expected_amount = self.expected_payments.get(payment.ticket_number)
-                if expected_amount is None:
-                    discrepancies.append(Discrepancy(
-                        description=f"Ticket {payment.ticket_number} recebido mas não estava na lista de esperados",
-                        difference=payment.amount
-                    ))
-                elif abs(expected_amount - payment.amount) > 0.01:  # Tolerância de 1 centavo
-                    discrepancies.append(Discrepancy(
-                        description=f"Valor divergente para ticket {payment.ticket_number}",
-                        difference=payment.amount - expected_amount
-                    ))
+            expected = self.expected_payments[date_key]
             
-            # Verificar pagamentos esperados não recebidos
-            for ticket, expected_amount in self.expected_payments.items():
-                if not any(p.ticket_number == ticket for p in received_payments):
-                    discrepancies.append(Discrepancy(
-                        description=f"Ticket {ticket} esperado mas não recebido",
-                        difference=-expected_amount
-                    ))
+            # Agrupar pagamentos por ticket
+            payments_by_ticket = {}
+            for payment in payments:
+                if payment.ticket_number not in payments_by_ticket:
+                    payments_by_ticket[payment.ticket_number] = []
+                payments_by_ticket[payment.ticket_number].append(payment)
             
-            # Determinar status
-            if len(discrepancies) == 0:
-                status = "CONCILIADO"
-            else:
-                status = "DIVERGENTE"
+            # Realizar conciliação
+            reconciled = []
+            pending = []
+            errors = []
             
-            return ReconciliationResult(
-                status=status,
-                total_expected=total_expected,
-                total_received=total_received,
-                discrepancies=discrepancies
-            )
+            for ticket, ticket_payments in payments_by_ticket.items():
+                expected_amount = expected.get(ticket, 0)
+                received_amount = sum(p.amount for p in ticket_payments)
+                
+                if expected_amount == received_amount:
+                    # Pagamento conciliado
+                    for payment in ticket_payments:
+                        payment.status = 'reconciled'
+                    reconciled.append({
+                        'ticket': ticket,
+                        'amount': received_amount,
+                        'status': 'reconciled'
+                    })
+                elif expected_amount > received_amount:
+                    # Pagamento pendente
+                    for payment in ticket_payments:
+                        payment.status = 'pending'
+                    pending.append({
+                        'ticket': ticket,
+                        'expected': expected_amount,
+                        'received': received_amount,
+                        'difference': expected_amount - received_amount,
+                        'status': 'pending'
+                    })
+                else:
+                    # Pagamento com erro (recebido maior que esperado)
+                    for payment in ticket_payments:
+                        payment.status = 'error'
+                    errors.append({
+                        'ticket': ticket,
+                        'expected': expected_amount,
+                        'received': received_amount,
+                        'difference': received_amount - expected_amount,
+                        'status': 'error'
+                    })
+            
+            # Verificar tickets esperados que não foram recebidos
+            for ticket, expected_amount in expected.items():
+                if ticket not in payments_by_ticket:
+                    pending.append({
+                        'ticket': ticket,
+                        'expected': expected_amount,
+                        'received': 0,
+                        'difference': expected_amount,
+                        'status': 'pending'
+                    })
+            
+            return {
+                'date': date_key,
+                'reconciled': reconciled,
+                'pending': pending,
+                'errors': errors,
+                'summary': {
+                    'total_tickets': len(set(list(payments_by_ticket.keys()) + list(expected.keys()))),
+                    'reconciled_count': len(reconciled),
+                    'pending_count': len(pending),
+                    'error_count': len(errors)
+                }
+            }
             
         except Exception as e:
-            logger.error(f"Erro ao realizar conciliação: {e}")
+            logger.error(f"Erro ao realizar conciliação: {str(e)}")
             raise 

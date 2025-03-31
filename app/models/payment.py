@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 class Payment(BaseModel):
@@ -10,6 +10,7 @@ class Payment(BaseModel):
     installments: int
     transaction_id: str
     date: date
+    status: str = 'pending'  # Default status is 'pending'
 
 class Discrepancy(BaseModel):
     description: str
