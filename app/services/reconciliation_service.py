@@ -39,6 +39,11 @@ class ReconciliationService:
             payments = []
             expected_payments_dict = {}  # Dicionário para armazenar valores esperados
             
+            # Determinar bandeira do cartão baseado no primeiro dígito do order_id
+            def get_card_brand(order_id: str) -> str:
+                first_digit = str(order_id)[0]
+                return 'mastercard' if int(first_digit) % 2 == 0 else 'visa'
+            
             for idx, row in df.iterrows():
                 try:
                     # Validar tipo de pagamento
@@ -70,13 +75,16 @@ class ReconciliationService:
                     payment_date = datetime.now().date()
                     date_key = payment_date.isoformat()
                     
+                    # Determinar a bandeira do cartão
+                    card_brand = get_card_brand(row['order_id'])
+                    
                     # Criar objeto Payment
                     ticket_number = str(row['order_id'])[:8]  # Usando primeiros 8 caracteres como ticket
                     payment = Payment(
                         ticket_number=ticket_number,
                         amount=payment_value,
                         payment_type='credit_card',
-                        payment_method='credit_card',
+                        payment_method=card_brand,  # Usando a bandeira determinada
                         installments=installments,
                         transaction_id=str(row['order_id']),
                         date=payment_date,
@@ -95,7 +103,7 @@ class ReconciliationService:
                     if ticket_number not in expected_payments_dict[date_key]:
                         expected_payments_dict[date_key][ticket_number] = payment_value
                     
-                    logger.info(f"Pagamento processado com sucesso: {payment.transaction_id}")
+                    logger.info(f"Pagamento processado com sucesso: {payment.transaction_id} ({card_brand})")
                     
                 except Exception as e:
                     logger.error(f"Erro ao processar linha {idx + 2}: {str(e)}")
@@ -204,12 +212,20 @@ class ReconciliationService:
                     'error': round((error / total_payments) * 100)
                 }
             
+            # Calcular totais por método de pagamento em percentual
+            total_amount = sum(payment_methods.values())
+            payment_methods_percentages = {
+                method: round((amount / total_amount * 100) if total_amount > 0 else 0, 1)
+                for method, amount in payment_methods.items()
+            }
+            
             return {
                 'expected_amount': expected_amount,
                 'received_amount': received_amount,
                 'difference': difference,
                 'status': 'reconciled' if difference == 0 else 'pending',
                 'payment_methods': payment_methods,
+                'payment_methods_percentages': payment_methods_percentages,
                 'status_counts': status_counts,
                 'status_percentages': status_percentages
             }
