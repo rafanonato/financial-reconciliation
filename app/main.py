@@ -68,13 +68,31 @@ async def get_dashboard_data(date: str):
         )
 
 @app.get("/api/transactions")
-async def get_transactions(date: str = None, status: str = None, search: str = None):
+async def get_transactions(
+    date: str = None, 
+    status: str = None, 
+    search: str = None,
+    page: int = 1,
+    page_size: int = 50
+):
     """
-    Obtém a lista de transações com filtros opcionais
+    Obtém a lista de transações com filtros opcionais e paginação
     """
     try:
-        transactions = reconciliation_service.get_transactions(date, status, search)
-        return transactions
+        items, total = reconciliation_service.get_transactions(
+            date=date, 
+            status=status, 
+            search=search,
+            page=page,
+            page_size=page_size
+        )
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size if total > 0 else 0
+        }
     except Exception as e:
         raise HTTPException(
             status_code=500,

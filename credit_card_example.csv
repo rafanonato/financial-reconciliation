@@ -1,0 +1,7 @@
+order_id,payment_sequential,payment_type,payment_installments,payment_value
+123456789,1,credit_card,1,5250.75
+123456790,1,credit_card,1,3780.25
+123456791,1,credit_card,1,8920.50
+123456792,1,credit_card,1,2450.00
+123456793,1,credit_card,1,6750.25
+123456794,1,credit_card,1,4320.75

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import pandas as pd
 from app.models.payment import Payment, ReconciliationResult, Discrepancy
 import logging
@@ -234,16 +234,20 @@ class ReconciliationService:
             logger.error(f"Erro ao obter dados do dashboard: {str(e)}")
             raise
 
-    def get_transactions(self, date: Optional[str] = None, status: Optional[str] = None, search: Optional[str] = None) -> List[Dict]:
+    def get_transactions(self, date: Optional[str] = None, status: Optional[str] = None, search: Optional[str] = None, page: int = 1, page_size: int = 50) -> Tuple[List[Dict], int]:
         """
-        Obtém a lista de transações com filtros opcionais
+        Obtém a lista de transações com filtros opcionais e paginação
         """
         try:
             all_payments = []
             if date:
-                date_obj = datetime.strptime(date, "%Y-%m-%d")
-                date_key = date_obj.date().isoformat()
-                all_payments = self.payments.get(date_key, [])
+                try:
+                    date_obj = datetime.strptime(date, "%Y-%m-%d")
+                    date_key = date_obj.date().isoformat()
+                    all_payments = self.payments.get(date_key, [])
+                except ValueError as e:
+                    logger.error(f"Erro ao converter data: {e}")
+                    raise ValueError(f"Formato de data inválido: {date}")
             else:
                 for payments in self.payments.values():
                     all_payments.extend(payments)
@@ -253,16 +257,17 @@ class ReconciliationService:
             for payment in all_payments:
                 transaction = {
                     'id': payment.transaction_id,
-                    'date': payment.date.strftime("%d/%m/%Y"),
-                    'location': 'Estacionamento Centro',  # Você pode adicionar lógica para determinar o local
-                    'method': payment.payment_method,
-                    'amount': payment.amount,
-                    'status': 'pendente'  # Você pode adicionar lógica para determinar o status
+                    'date': payment.date.isoformat(),
+                    'location': 'Estacionamento Centro',
+                    'method': payment.payment_method.title(),
+                    'amount': float(payment.amount),
+                    'status': payment.status.title()
                 }
                 
                 # Aplicar filtros
-                if status and transaction['status'] != status:
-                    continue
+                if status and status.lower() != 'todos':
+                    if transaction['status'].lower() != status.lower():
+                        continue
                 
                 if search:
                     search_lower = search.lower()
@@ -271,7 +276,16 @@ class ReconciliationService:
                 
                 transactions.append(transaction)
             
-            return transactions
+            # Calcular total antes da paginação
+            total_items = len(transactions)
+            
+            # Aplicar paginação
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            paginated_transactions = transactions[start_idx:end_idx]
+            
+            logger.info(f"Retornando {len(paginated_transactions)} transações de um total de {total_items}")
+            return paginated_transactions, total_items
             
         except Exception as e:
             logger.error(f"Erro ao obter transações: {e}")

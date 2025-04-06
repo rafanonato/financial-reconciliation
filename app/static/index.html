@@ -264,6 +264,26 @@
                             </tbody>
                         </table>
                     </div>
+                    <!-- Paginação -->
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div class="text-muted">
+                            Mostrando <span id="currentRange">0-0</span> de <span id="totalItems">0</span> transações
+                        </div>
+                        <nav aria-label="Navegação de páginas">
+                            <ul class="pagination mb-0">
+                                <li class="page-item" id="prevPage">
+                                    <a class="page-link" href="#" aria-label="Anterior">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                                <li class="page-item" id="nextPage">
+                                    <a class="page-link" href="#" aria-label="Próximo">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
                 </div>
             </div>
         </div>
@@ -402,75 +422,146 @@
         document.getElementById('reconciliationDate').valueAsDate = new Date();
         updateDashboard(new Date().toISOString().split('T')[0]);
 
-        // Dados de exemplo para a tabela de transações
-        const transactions = [
-            { id: 'TX123456', date: '15/05/2023', location: 'Estacionamento Centro', method: 'Mastercard', amount: 5250.75, status: 'conciliado' },
-            { id: 'TX123457', date: '15/05/2023', location: 'Estacionamento Shopping', method: 'Visa', amount: 3780.25, status: 'conciliado' },
-            { id: 'TX123458', date: '15/05/2023', location: 'Estacionamento Aeroporto', method: 'PIX', amount: 8920.50, status: 'pendente' },
-            { id: 'TX123459', date: '15/05/2023', location: 'Estacionamento Hospital', method: 'Boleto', amount: 2450.00, status: 'erro' },
-            { id: 'TX123460', date: '15/05/2023', location: 'Estacionamento Centro', method: 'PIX', amount: 6750.25, status: 'pendente' },
-            { id: 'TX123461', date: '15/05/2023', location: 'Estacionamento Shopping', method: 'Mastercard', amount: 4320.75, status: 'conciliado' }
-        ];
+        // Variáveis de paginação
+        let currentPage = 1;
+        const pageSize = 50;
+        let totalItems = 0;
+        let totalPages = 0;
 
-        // Função para renderizar a tabela de transações
-        function renderTransactions(filteredTransactions = transactions) {
-            const tbody = document.getElementById('transactionsTable');
-            tbody.innerHTML = '';
-            
-            filteredTransactions.forEach(transaction => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${transaction.id}</td>
-                    <td>${transaction.date}</td>
-                    <td>${transaction.location}</td>
-                    <td>${transaction.method}</td>
-                    <td>${formatCurrency(transaction.amount)}</td>
-                    <td><span class="status-badge status-${transaction.status}">${transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}</span></td>
-                `;
-                tbody.appendChild(tr);
-            });
+        // Função para carregar transações
+        async function loadTransactions() {
+            try {
+                const searchTerm = document.getElementById('searchInput').value;
+                const statusFilter = document.getElementById('statusFilter').value;
+                const date = document.getElementById('reconciliationDate').value;
+
+                const queryParams = new URLSearchParams({
+                    page: currentPage,
+                    page_size: pageSize
+                });
+
+                if (date) queryParams.append('date', date);
+                if (statusFilter && statusFilter !== 'todos') queryParams.append('status', statusFilter);
+                if (searchTerm) queryParams.append('search', searchTerm);
+
+                const response = await fetch(`/api/transactions?${queryParams}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                
+                // Atualizar informações de paginação
+                totalItems = data.total;
+                const start = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+                const end = Math.min(currentPage * pageSize, totalItems);
+                document.getElementById('currentRange').textContent = `${start}-${end}`;
+                document.getElementById('totalItems').textContent = totalItems;
+
+                // Atualizar estado dos botões de paginação
+                document.getElementById('prevPage').classList.toggle('disabled', currentPage === 1);
+                document.getElementById('nextPage').classList.toggle('disabled', currentPage >= Math.ceil(totalItems / pageSize));
+
+                // Renderizar transações
+                const tbody = document.getElementById('transactionsTable');
+                tbody.innerHTML = '';
+                
+                if (data.items && data.items.length > 0) {
+                    data.items.forEach(transaction => {
+                        const tr = document.createElement('tr');
+                        const date = new Date(transaction.date);
+                        tr.innerHTML = `
+                            <td>${transaction.id}</td>
+                            <td>${date.toLocaleDateString('pt-BR')}</td>
+                            <td>${transaction.location}</td>
+                            <td>${transaction.method}</td>
+                            <td>${formatCurrency(transaction.amount)}</td>
+                            <td>
+                                <span class="badge ${getStatusBadgeClass(transaction.status)}">
+                                    ${transaction.status}
+                                </span>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td colspan="6" class="text-center">
+                            Nenhuma transação encontrada
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar transações:', error);
+                showAlert('Erro ao carregar transações: ' + error.message, 'danger');
+            }
         }
 
-        // Inicializar tabela
-        renderTransactions();
+        // Função para obter a classe do badge de status
+        function getStatusBadgeClass(status) {
+            const statusMap = {
+                'Reconciled': 'bg-success',
+                'Pending': 'bg-warning',
+                'Error': 'bg-danger',
+                'Conciliado': 'bg-success',
+                'Pendente': 'bg-warning',
+                'Erro': 'bg-danger'
+            };
+            return statusMap[status] || 'bg-secondary';
+        }
 
-        // Evento de busca
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const statusFilter = document.getElementById('statusFilter').value;
-            
-            const filtered = transactions.filter(transaction => {
-                const matchesSearch = Object.values(transaction).some(value => 
-                    value.toString().toLowerCase().includes(searchTerm)
-                );
-                const matchesStatus = statusFilter === 'todos' || transaction.status === statusFilter;
-                return matchesSearch && matchesStatus;
-            });
-            
-            renderTransactions(filtered);
+        // Eventos de paginação
+        document.getElementById('prevPage').addEventListener('click', (e) => {
+            e.preventDefault();
+            if (currentPage > 1) {
+                currentPage--;
+                loadTransactions();
+            }
         });
 
-        // Evento de filtro por status
-        document.getElementById('statusFilter').addEventListener('change', (e) => {
-            const statusFilter = e.target.value;
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            
-            const filtered = transactions.filter(transaction => {
-                const matchesSearch = Object.values(transaction).some(value => 
-                    value.toString().toLowerCase().includes(searchTerm)
-                );
-                const matchesStatus = statusFilter === 'todos' || transaction.status === statusFilter;
-                return matchesSearch && matchesStatus;
-            });
-            
-            renderTransactions(filtered);
+        document.getElementById('nextPage').addEventListener('click', (e) => {
+            e.preventDefault();
+            if (currentPage < Math.ceil(totalItems / pageSize)) {
+                currentPage++;
+                loadTransactions();
+            }
         });
 
-        // Evento de exportação
-        document.getElementById('exportButton').addEventListener('click', () => {
-            // Implementar lógica de exportação
-            alert('Funcionalidade de exportação em desenvolvimento');
+        // Eventos de filtro e busca
+        document.getElementById('searchInput').addEventListener('input', debounce(() => {
+            currentPage = 1;
+            loadTransactions();
+        }, 300));
+
+        document.getElementById('statusFilter').addEventListener('change', () => {
+            currentPage = 1;
+            loadTransactions();
         });
+
+        // Função de debounce para evitar muitas requisições durante a digitação
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Carregar transações iniciais quando a data for selecionada
+        document.getElementById('reconciliationDate').addEventListener('change', () => {
+            currentPage = 1;
+            loadTransactions();
+        });
+
+        // Inicializar com a data atual e carregar transações
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('reconciliationDate').value = today;
+        loadTransactions();
 
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
