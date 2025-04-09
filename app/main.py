@@ -35,6 +35,64 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 # Instância do serviço de conciliação
 reconciliation_service = ReconciliationService()
 
+# Gerar dados de exemplo em vez de carregar o arquivo
+def generate_sample_data():
+    try:
+        # Criar alguns pagamentos de exemplo para o dia atual
+        from datetime import date
+        from app.models.payment import Payment
+        
+        today = date.today()
+        date_key = today.isoformat()
+        
+        # Limpar dados existentes
+        if date_key in reconciliation_service.payments:
+            reconciliation_service.payments[date_key] = []
+        
+        # Gerar 10 transações de exemplo
+        sample_payments = []
+        payment_methods = ['mastercard', 'visa']
+        
+        for i in range(1, 11):
+            # Alternar entre mastercard e visa
+            payment_method = payment_methods[i % 2]
+            
+            # Gerar um valor de pagamento
+            amount = 100.0 + (i * 50)
+            
+            # ID da transação
+            transaction_id = f"TRANS{i:06d}"
+            
+            # Criar o pagamento
+            payment = Payment(
+                ticket_number=f"TK{i:04d}",
+                amount=amount,
+                payment_type='credit_card',
+                payment_method=payment_method,
+                installments=1,
+                transaction_id=transaction_id,
+                date=today,
+                status='pending'
+            )
+            
+            sample_payments.append(payment)
+            
+            # Adicionar ao dicionário de pagamentos
+            if date_key not in reconciliation_service.payments:
+                reconciliation_service.payments[date_key] = []
+            
+            reconciliation_service.payments[date_key].append(payment)
+        
+        print(f"Gerados {len(sample_payments)} pagamentos de exemplo para a data {date_key}")
+        return sample_payments
+    
+    except Exception as e:
+        print(f"Erro ao gerar dados de exemplo: {str(e)}")
+        return []
+
+# Gerar dados de exemplo na inicialização
+generate_sample_data()
+
 @app.get("/")
 async def root():
     return FileResponse("app/static/index.html")
@@ -174,10 +232,10 @@ async def upload_credit_card(file: UploadFile = File(...)):
             # Processar arquivo
             payments = reconciliation_service.process_credit_card_file(file_path)
             
-            # Calcular total por bandeira (placeholder - você pode adicionar a lógica específica)
+            # Calcular total por bandeira corretamente
             total_by_brand = {
-                "mastercard": sum(p.amount for p in payments),  # Temporário
-                "visa": 0.0  # Temporário
+                "mastercard": sum(p.amount for p in payments if p.payment_method == 'mastercard'),
+                "visa": sum(p.amount for p in payments if p.payment_method == 'visa')
             }
             
             return JSONResponse(

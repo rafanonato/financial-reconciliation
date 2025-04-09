@@ -41,8 +41,14 @@ class ReconciliationService:
             
             # Determinar bandeira do cartão baseado no primeiro dígito do order_id
             def get_card_brand(order_id: str) -> str:
-                first_digit = str(order_id)[0]
-                return 'mastercard' if int(first_digit) % 2 == 0 else 'visa'
+                # Melhorar a determinação da bandeira para uma distribuição mais realista
+                try:
+                    first_digit = int(str(order_id)[0])
+                    # Mastercard para dígitos 1, 3, 5, 7, 9 e Visa para 0, 2, 4, 6, 8
+                    return 'mastercard' if first_digit % 2 == 1 else 'visa'
+                except (ValueError, IndexError):
+                    # Em caso de erro, alternativa padrão
+                    return 'mastercard'
             
             for idx, row in df.iterrows():
                 try:
