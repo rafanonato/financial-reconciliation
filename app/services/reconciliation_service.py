@@ -429,4 +429,275 @@ class ReconciliationService:
             
         except Exception as e:
             logger.error(f"Erro ao realizar conciliação: {str(e)}")
+            raise
+
+    def get_reconciliation_history(self, start_date: str = None, end_date: str = None, 
+                                  payment_method: str = None, view_type: str = "daily") -> dict:
+        """
+        Obtém o histórico de conciliações para análise, com opções de filtro por período, método de pagamento e tipo de visualização
+        """
+        try:
+            # Obter todas as datas no serviço de reconciliação
+            all_dates = list(self.payments.keys())
+            
+            # Filtrar datas conforme start_date e end_date
+            filtered_dates = all_dates
+            if start_date:
+                filtered_dates = [d for d in filtered_dates if d >= start_date]
+            if end_date:
+                filtered_dates = [d for d in filtered_dates if d <= end_date]
+            
+            # Construir resposta com dados filtrados
+            history_items = []
+            
+            for date_key in filtered_dates:
+                payments = self.payments.get(date_key, [])
+                
+                # Pular se não houver pagamentos
+                if not payments:
+                    continue
+                    
+                # Filtrar por método de pagamento se especificado
+                if payment_method and payment_method != 'all':
+                    payments = [p for p in payments if p.payment_method == payment_method]
+                    
+                    # Pular se não houver pagamentos após filtro
+                    if not payments:
+                        continue
+                
+                # Calcular valores agregados
+                total_expected = sum(self.expected_payments.get(date_key, {}).values())
+                total_received = sum(p.amount for p in payments)
+                
+                # Calcular métodos de pagamento
+                payment_methods = {
+                    'mastercard': sum(p.amount for p in payments if p.payment_method == 'mastercard'),
+                    'visa': sum(p.amount for p in payments if p.payment_method == 'visa'),
+                    'pix': sum(p.amount for p in payments if p.payment_method == 'pix'),
+                    'boleto': sum(p.amount for p in payments if p.payment_method == 'boleto')
+                }
+                
+                # Determinar status baseado na diferença
+                difference = total_received - total_expected
+                status = 'reconciled' if abs(difference) < 0.01 else ('pending' if total_received < total_expected else 'error')
+                
+                # Adicionar item ao histórico
+                history_items.append({
+                    'date': date_key,
+                    'expected_amount': total_expected,
+                    'received_amount': total_received,
+                    'difference': difference,
+                    'status': status,
+                    'payment_methods': payment_methods,
+                    'transaction_count': len(payments)
+                })
+            
+            # Agrupar conforme o tipo de visualização
+            if view_type != 'daily':
+                grouped_items = {}
+                
+                for item in history_items:
+                    group_key = item['date'][:7] if view_type == 'monthly' else item['date'][:4]
+                    
+                    if group_key not in grouped_items:
+                        grouped_items[group_key] = {
+                            'date': group_key,
+                            'expected_amount': 0,
+                            'received_amount': 0,
+                            'difference': 0,
+                            'payment_methods': {
+                                'mastercard': 0,
+                                'visa': 0,
+                                'pix': 0,
+                                'boleto': 0
+                            },
+                            'transaction_count': 0
+                        }
+                    
+                    # Somar valores
+                    grouped_items[group_key]['expected_amount'] += item['expected_amount']
+                    grouped_items[group_key]['received_amount'] += item['received_amount']
+                    grouped_items[group_key]['difference'] += item['difference']
+                    
+                    for method in item['payment_methods']:
+                        grouped_items[group_key]['payment_methods'][method] += item['payment_methods'][method]
+                    
+                    grouped_items[group_key]['transaction_count'] += item['transaction_count']
+                
+                # Determinar status baseado na diferença agregada
+                for key in grouped_items:
+                    difference = grouped_items[key]['difference']
+                    grouped_items[key]['status'] = 'reconciled' if abs(difference) < 0.01 else ('pending' if difference < 0 else 'error')
+                
+                history_items = list(grouped_items.values())
+            
+            return {
+                'items': history_items,
+                'total': len(history_items)
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao obter histórico de conciliações: {str(e)}")
+            raise
+    
+    def compare_periods(self, period1_start: str, period1_end: str, 
+                        period2_start: str, period2_end: str, payment_method: str = None) -> dict:
+        """
+        Compara dados de reconciliação entre dois períodos distintos
+        """
+        try:
+            # Obter todas as datas no serviço de reconciliação
+            all_dates = list(self.payments.keys())
+            
+            # Filtrar datas para o período 1
+            period1_dates = [d for d in all_dates if d >= period1_start and d <= period1_end]
+            
+            # Filtrar datas para o período 2
+            period2_dates = [d for d in all_dates if d >= period2_start and d <= period2_end]
+            
+            # Calcular dados agregados para o período 1
+            period1_data = {
+                'expected_amount': 0,
+                'received_amount': 0,
+                'difference': 0,
+                'payment_methods': {
+                    'mastercard': 0,
+                    'visa': 0,
+                    'pix': 0,
+                    'boleto': 0
+                },
+                'transaction_count': 0
+            }
+            
+            # Calcular dados agregados para o período 2
+            period2_data = {
+                'expected_amount': 0,
+                'received_amount': 0,
+                'difference': 0,
+                'payment_methods': {
+                    'mastercard': 0,
+                    'visa': 0,
+                    'pix': 0,
+                    'boleto': 0
+                },
+                'transaction_count': 0
+            }
+            
+            # Processar dados do período 1
+            for date_key in period1_dates:
+                payments = self.payments.get(date_key, [])
+                
+                # Filtrar por método de pagamento se especificado
+                if payment_method and payment_method != 'all':
+                    payments = [p for p in payments if p.payment_method == payment_method]
+                
+                # Calcular valores
+                period1_data['expected_amount'] += sum(self.expected_payments.get(date_key, {}).values())
+                period1_data['received_amount'] += sum(p.amount for p in payments)
+                period1_data['transaction_count'] += len(payments)
+                
+                # Calcular por método de pagamento
+                period1_data['payment_methods']['mastercard'] += sum(p.amount for p in payments if p.payment_method == 'mastercard')
+                period1_data['payment_methods']['visa'] += sum(p.amount for p in payments if p.payment_method == 'visa')
+                period1_data['payment_methods']['pix'] += sum(p.amount for p in payments if p.payment_method == 'pix')
+                period1_data['payment_methods']['boleto'] += sum(p.amount for p in payments if p.payment_method == 'boleto')
+            
+            # Processar dados do período 2
+            for date_key in period2_dates:
+                payments = self.payments.get(date_key, [])
+                
+                # Filtrar por método de pagamento se especificado
+                if payment_method and payment_method != 'all':
+                    payments = [p for p in payments if p.payment_method == payment_method]
+                
+                # Calcular valores
+                period2_data['expected_amount'] += sum(self.expected_payments.get(date_key, {}).values())
+                period2_data['received_amount'] += sum(p.amount for p in payments)
+                period2_data['transaction_count'] += len(payments)
+                
+                # Calcular por método de pagamento
+                period2_data['payment_methods']['mastercard'] += sum(p.amount for p in payments if p.payment_method == 'mastercard')
+                period2_data['payment_methods']['visa'] += sum(p.amount for p in payments if p.payment_method == 'visa')
+                period2_data['payment_methods']['pix'] += sum(p.amount for p in payments if p.payment_method == 'pix')
+                period2_data['payment_methods']['boleto'] += sum(p.amount for p in payments if p.payment_method == 'boleto')
+            
+            # Calcular diferenças
+            period1_data['difference'] = period1_data['received_amount'] - period1_data['expected_amount']
+            period2_data['difference'] = period2_data['received_amount'] - period2_data['expected_amount']
+            
+            return {
+                'period1': {
+                    'start_date': period1_start,
+                    'end_date': period1_end,
+                    'data': period1_data
+                },
+                'period2': {
+                    'start_date': period2_start,
+                    'end_date': period2_end,
+                    'data': period2_data
+                },
+                'comparison': {
+                    'expected_diff': period2_data['expected_amount'] - period1_data['expected_amount'],
+                    'received_diff': period2_data['received_amount'] - period1_data['received_amount'],
+                    'transaction_count_diff': period2_data['transaction_count'] - period1_data['transaction_count'],
+                    'percentage_change': ((period2_data['received_amount'] / period1_data['received_amount']) - 1) * 100 if period1_data['received_amount'] > 0 else 0
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao comparar períodos: {str(e)}")
+            raise
+    
+    def get_day_detail(self, date: datetime) -> dict:
+        """
+        Obtém detalhes completos de um dia específico, incluindo transações e métodos de pagamento
+        """
+        try:
+            # Converter para string ISO
+            date_key = date.isoformat()
+            
+            # Obter pagamentos da data
+            payments = self.payments.get(date_key, [])
+            
+            if not payments:
+                raise ValueError(f"Nenhum pagamento encontrado para a data {date}")
+            
+            # Calcular valores
+            expected_amount = sum(self.expected_payments.get(date_key, {}).values())
+            received_amount = sum(p.amount for p in payments)
+            difference = received_amount - expected_amount
+            
+            # Determinar status
+            status = 'reconciled' if abs(difference) < 0.01 else ('pending' if received_amount < expected_amount else 'error')
+            
+            # Calcular métodos de pagamento
+            payment_methods = {
+                'mastercard': sum(p.amount for p in payments if p.payment_method == 'mastercard'),
+                'visa': sum(p.amount for p in payments if p.payment_method == 'visa'),
+                'pix': sum(p.amount for p in payments if p.payment_method == 'pix'),
+                'boleto': sum(p.amount for p in payments if p.payment_method == 'boleto')
+            }
+            
+            # Transformar pagamentos em formato de transações
+            transactions = []
+            for payment in payments:
+                transactions.append({
+                    'id': payment.transaction_id,
+                    'method': payment.payment_method,
+                    'amount': payment.amount,
+                    'status': payment.status
+                })
+            
+            return {
+                'date': date_key,
+                'expected_amount': expected_amount,
+                'received_amount': received_amount,
+                'difference': difference,
+                'status': status,
+                'payment_methods': payment_methods,
+                'transactions': transactions
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao obter detalhes do dia: {str(e)}")
             raise 
